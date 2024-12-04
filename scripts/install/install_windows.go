@@ -57,7 +57,7 @@ func GetChromeManifestPaths() []string {
 
 func GetFirefoxManifestPaths() []string {
 	return append(
-		[]string{`C:\Program Files\Mozilla Firefox\FirefoxPwdMgrHostApp_manifest.json`},
+		[]string{`C:\ProgramData\Mozilla Firefox\FirefoxPwdMgrHostApp_manifest.json`},
 		getWindowsManifestPaths(FIREFOX_MANIFEST_KEYS)...,
 	)
 }

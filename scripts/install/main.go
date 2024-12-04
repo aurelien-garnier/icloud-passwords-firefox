@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +14,17 @@ const (
 )
 
 func main() {
-	firefoxManifests := GetFirefoxManifestPaths()
+	// Arguments
+	var customFirefoxManifest string
+
+	flag.StringVar(&customFirefoxManifest, "manifest-path", "", "Specify a manifest location to register the extension with.")
+	flag.Parse()
+
+	// If a custom manifest path is specified, use it instead of the default one
+	firefoxManifests := []string{customFirefoxManifest}
+	if customFirefoxManifest == "" {
+		firefoxManifests = GetFirefoxManifestPaths()
+	}
 
 	for _, manifestPath := range firefoxManifests {
 		manifest, err := ReadManifest(manifestPath)
