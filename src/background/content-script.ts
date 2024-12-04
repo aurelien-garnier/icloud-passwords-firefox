@@ -3,6 +3,28 @@ import { LoginForm, fillLoginForm, getLoginForms } from "../utils/dom";
 import { throttle } from "../utils/timings";
 
 const observing = new Map<HTMLInputElement, () => void>();
+const observingForms = new Map<HTMLFormElement, () => void>();
+
+const observeForm = (form: LoginForm) => {
+  if (!form.formElement) return
+
+  const onSubmit = async () => {
+    await browser.runtime.sendMessage({
+      cmd: "SAVE_PASSWORD",
+      tabId: browser.tabs.getCurrent(),
+      url: window.location.href,
+      username: form.usernameInput?.value,
+      password: form.passwordInput.value
+    });
+  }
+
+  const onCleanupForm = async () => {
+    form.formElement?.removeEventListener("submit", onSubmit);
+  }
+
+  form.formElement?.addEventListener("submit", onSubmit)
+  observingForms.set(form.formElement, onCleanupForm)
+}
 
 const observe = (input: HTMLInputElement, form: LoginForm) => {
   let iframe: HTMLIFrameElement | undefined;
@@ -125,18 +147,32 @@ const refresh = throttle(() => {
   const forms = getLoginForms();
 
   const oldInputs = new Map(observing);
+  const oldForms = new Map(observingForms);
   for (const form of forms) {
     if (form.usernameInput !== null && !oldInputs.delete(form.usernameInput))
       observe(form.usernameInput, form);
 
     if (!oldInputs.delete(form.passwordInput))
       observe(form.passwordInput, form);
+
+    if (form.formElement) {
+      if (!oldForms.delete(form.formElement))
+      {
+        observeForm(form)
+      }
+    }
   }
 
   for (const [input, cleanup] of [...oldInputs.entries()]) {
     observing.delete(input);
     cleanup();
   }
+
+  for (const [form, cleanup] of [...oldForms.entries()]) {
+    observingForms.delete(form);
+    cleanup();
+  }
+
 });
 
 refresh();

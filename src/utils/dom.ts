@@ -1,6 +1,7 @@
 export interface LoginForm {
   usernameInput: HTMLInputElement | null;
   passwordInput: HTMLInputElement;
+  formElement: HTMLFormElement | null;
 }
 
 export const isUsernameInput = (input: HTMLInputElement) => {
@@ -49,6 +50,7 @@ export const getLoginForms = () => {
 
   return passwordInputs.map<LoginForm>((passwordInput) => {
     let usernameInput: Element | null = passwordInput;
+    const formElement: HTMLFormElement | null = passwordInput.closest("form");
     let success = false;
     outer: do {
       if (usernameInput.lastElementChild !== null) {
@@ -71,11 +73,14 @@ export const getLoginForms = () => {
       )
     );
 
-    if (!success) usernameInput = null;
+    if (!success) {
+      usernameInput = null;
+    }
 
     return {
       usernameInput,
       passwordInput,
+      formElement
     };
   });
 };

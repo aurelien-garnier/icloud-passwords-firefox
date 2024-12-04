@@ -136,6 +136,19 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
           success: true,
         };
       }
+
+      case "SAVE_PASSWORD": {
+        await getAPI().save(
+          message.tabId ?? sender.tab?.id ?? -1,
+          message.url,
+          message.username,
+          message.password
+        );
+
+        return {
+          success: true,
+        };
+      }
     }
   } catch (e) {
     console.error(e);

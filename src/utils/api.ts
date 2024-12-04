@@ -399,4 +399,62 @@ export class ApplePasswordManager extends EventEmitter {
       port.onDisconnect.addListener(() => resolve());
     });
   }
+
+  async save(
+    tabId: number,
+    url: string,
+    username: string,
+    password: string
+  ) {
+    const { hostname } = new URL(url);
+    if (this.session === undefined)
+      throw new Error("Invalid session state: not initialized");
+
+    const sdata = this.session.serialize(
+      await this.session.encrypt({
+        ACT: Action.MAYBE_ADD,
+        URL: hostname,
+        USR: "",
+        PWD: "",
+        NURL: hostname,
+        NUSR: username,
+        NPWD: password
+      }),
+    );
+
+    const { payload } = await this._postMessage(
+      Command.SET_PASSWORD_FOR_LOGIN_NAME_AND_URL,
+      {
+        tabId: tabId,
+        frameId: 0,
+        url: hostname,
+        payload: {
+          QID: "CmdSetPassword4LoginName_URL", // CmdGetLoginNames4URL
+          SMSG: JSON.stringify({
+            TID: this.session.username,
+            SDATA: sdata,
+          }),
+        },
+      },
+      null
+    );
+
+    // macOS sends this as an object, Windows as a string
+    if (typeof payload.SMSG === "string")
+      payload.SMSG = JSON.parse(payload.SMSG);
+
+    if (payload.SMSG.TID !== this.session.username)
+      throw new Error("Invalid server response: destined to another session");
+
+    let response;
+    try {
+      const data = await this.session.decrypt(
+        this.session.deserialize(payload.SMSG.SDATA),
+      );
+      response = JSON.parse(data.toString("utf8"));
+    } catch (e) {
+      throw new Error("Invalid server response: missing payload");
+    }
+    return response
+  }
 }
