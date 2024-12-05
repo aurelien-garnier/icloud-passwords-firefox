@@ -1,32 +1,35 @@
 import { useEffect, useState } from "react";
 import browser from "webextension-polyfill";
 
-export interface LoginName {
+export interface OneTimeCode {
   username: string;
-  sites: string[];
+  domain: string;
+  source: string;
+  code: string | null;
 }
 
-export const useLoginNames = (tabId?: number, url?: string) => {
-  const [loginNames, setLoginNames] = useState<LoginName[]>();
+export const useOneTimeCodes = (tabId?: number, url?: string) => {
+  const [oneTimeCodes, setOneTimeCodes] = useState<OneTimeCode[]>();
   const [error, setError] = useState<string>();
 
   const refetch = async () => {
-    setLoginNames(undefined);
+    setOneTimeCodes(undefined);
     setError(undefined);
 
     if (tabId === undefined || url === undefined) return;
     if (url === "" || new URL(url).hostname === "") return;
 
     try {
-      const { success, loginNames, error } = await browser.runtime.sendMessage({
-        cmd: "LIST_LOGIN_NAMES_FOR_URL",
-        tabId,
-        url,
-      });
+      const { success, oneTimeCodes, error } =
+        await browser.runtime.sendMessage({
+          cmd: "LIST_ONE_TIME_CODES",
+          tabId,
+          url,
+        });
 
       if (error !== undefined || !success) throw error;
 
-      setLoginNames(loginNames);
+      setOneTimeCodes(oneTimeCodes);
     } catch (e: any) {
       setError(e.message ?? e.toString());
     }
@@ -35,9 +38,9 @@ export const useLoginNames = (tabId?: number, url?: string) => {
   useEffect(() => {
     if (tabId === undefined || url === undefined) return;
 
-    // Refresh passwords list every time the URL changes
+    // Refresh one time codes list every time the URL changes
     refetch();
   }, [tabId, url]);
 
-  return { loginNames, error, refetch };
+  return { oneTimeCodes, error, refetch };
 };

@@ -6,6 +6,7 @@ module.exports = {
   entry: {
     background: "./src/background/index.ts",
     fill_password: "./src/background/fill-password.ts",
+    fill_one_time_code: "./src/background/fill-one-time-code.ts",
     content_script: "./src/background/content-script.ts",
     settings: "./src/ui/settings/index.tsx",
     popup: "./src/ui/popup/index.tsx",

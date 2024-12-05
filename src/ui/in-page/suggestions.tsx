@@ -43,7 +43,7 @@ export function SuggestionsView({ url, query }: Props) {
   if (error !== undefined) return <ErrorView error={error} />;
   if (fillError !== undefined) return <ErrorView error={fillError} />;
   if (matchingLoginNames === undefined)
-    return <LoadingView action="GET_LOGIN_NAMES_FOR_URL" />;
+    return <LoadingView action="LIST_LOGIN_NAMES_FOR_URL" />;
 
   return (
     <>

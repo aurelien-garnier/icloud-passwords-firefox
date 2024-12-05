@@ -1,20 +1,6 @@
 @import "../shared/styles/lib";
 
-.passwords {
-  > nav {
-    display: flex;
-    justify-content: center;
-    padding: 10px 20px 0 20px;
-    gap: 20px;
-
-    > a {
-      &:not(.active) {
-        color: $color-text-secondary;
-        text-decoration: none;
-      }
-    }
-  }
-
+.oneTimeCodes {
   > h2 {
     @include font-in-content-body-default;
     color: $color-text-primary;
@@ -74,20 +60,6 @@
         background-color: $color-background-2;
         cursor: pointer;
       }
-    }
-  }
-
-  > hr {
-    border: none;
-    border-top: 1px solid rgba($color-border-primary, 0.3);
-  }
-
-  > p {
-    padding: 10px 20px;
-    text-align: center;
-
-    > a {
-      align-self: center;
     }
   }
 }

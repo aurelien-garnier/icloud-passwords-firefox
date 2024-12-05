@@ -3,11 +3,57 @@ export interface LoginForm {
   passwordInput: HTMLInputElement;
 }
 
-export const isUsernameInput = (input: HTMLInputElement) => {
-  if (!["text", "email", undefined].includes(input.type)) return false;
-  if (!input.checkVisibility()) return false;
+const LOOKUP_FIELDS = [
+  "autocomplete",
+  "name",
+  "id",
+  "className",
+  "placeholder",
+  "aria-label",
+  "ng-model",
+];
 
-  const types = [
+export const isPasswordInput = (input: HTMLInputElement) => {
+  if (!input.checkVisibility()) return false;
+  if (input.type !== "password") return false;
+  if (input.autocomplete === "new-password") return false;
+
+  return true;
+};
+
+export const isOneTimeCodeInput = (input: HTMLInputElement) => {
+  if (!input.checkVisibility()) return false;
+  if (!["text", "number", undefined].includes(input.type)) return false;
+
+  const keywords = [
+    "one-time",
+    "onetime",
+    "one_time",
+    "one time",
+    "two-factor",
+    "twofactor",
+    "two_factor",
+    "two factor",
+    "2-factor",
+    "2factor",
+    "2_factor",
+    "2 factor",
+    "2fa",
+    "otp",
+  ];
+
+  return LOOKUP_FIELDS.some((field) => {
+    const value = input.getAttribute(field)?.toLowerCase();
+    if (!value) return false;
+    return keywords.some((keyword) => value.includes(keyword));
+  });
+};
+
+export const isUsernameInput = (input: HTMLInputElement) => {
+  if (!input.checkVisibility()) return false;
+  if (!["text", "email", undefined].includes(input.type)) return false;
+
+  const keywords = [
     "email",
     "e-mail",
     "mail",
@@ -17,35 +63,17 @@ export const isUsernameInput = (input: HTMLInputElement) => {
     "account",
   ];
 
-  const fields = [
-    "autocomplete",
-    "name",
-    "id",
-    "className",
-    "placeholder",
-    "aria-label",
-    "ng-model",
-  ];
-
-  return fields.some((field) => {
+  return LOOKUP_FIELDS.some((field) => {
     const value = input.getAttribute(field)?.toLowerCase();
     if (!value) return false;
-    return types.some((type) => value.includes(type));
+    return keywords.some((keyword) => value.includes(keyword));
   });
 };
 
 export const getLoginForms = () => {
-  let passwordInputs = [
-    ...document.querySelectorAll<HTMLInputElement>(
-      "input[autocomplete=current-password]",
-    ),
-  ].filter((input) => input.checkVisibility());
-
-  if (passwordInputs.length === 0) {
-    passwordInputs = [
-      ...document.querySelectorAll<HTMLInputElement>("input[type=password]"),
-    ].filter((input) => input.checkVisibility());
-  }
+  const passwordInputs = [...document.querySelectorAll("input")].filter(
+    (input) => isPasswordInput(input) || isOneTimeCodeInput(input),
+  );
 
   return passwordInputs.map<LoginForm>((passwordInput) => {
     let usernameInput: Element | null = passwordInput;

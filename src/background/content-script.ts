@@ -92,6 +92,17 @@ const observe = (input: HTMLInputElement, form: LoginForm) => {
           warnings,
         };
       }
+
+      case "FILL_ONE_TIME_CODE": {
+        const { username, code } = message;
+        const warnings = fillLoginForm(form, username, code);
+        destroy();
+
+        return {
+          success: true,
+          warnings,
+        };
+      }
     }
   };
 

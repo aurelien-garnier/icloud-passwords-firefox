@@ -47,19 +47,19 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
           success: true,
         };
 
-      case "GET_LOGIN_NAMES_FOR_URL":
+      case "LIST_LOGIN_NAMES_FOR_URL":
         return {
           success: true,
-          loginNames: await getAPI().getLoginNamesForURL(
+          loginNames: await getAPI().listLoginNamesForURL(
             message.tabId,
             message.url,
           ),
         };
 
-      case "GET_PASSWORD_FOR_LOGIN_NAME":
+      case "FETCH_PASSWORD_FOR_LOGIN_NAME":
         return {
           success: true,
-          loginName: await getAPI().getPasswordForLoginName(
+          loginName: await getAPI().fetchPasswordForLoginName(
             message.tabId,
             message.url,
             message.loginName,
@@ -67,7 +67,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
         };
 
       case "FILL_PASSWORD": {
-        const { username, password } = await getAPI().getPasswordForLoginName(
+        const { username, password } = await getAPI().fetchPasswordForLoginName(
           message.tabId ?? sender.tab?.id ?? -1,
           message.url,
           message.loginName,
@@ -107,7 +107,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
               tabId: tab.id,
             },
             func: (username, password) =>
-              window.iCloudPasswordsFill(username, password),
+              window.iCPFillPassword(username, password),
             args: [username, password],
           });
 
@@ -124,13 +124,102 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
       }
 
       case "COPY_PASSWORD": {
-        const { password } = await getAPI().getPasswordForLoginName(
+        const { password } = await getAPI().fetchPasswordForLoginName(
           message.tabId,
           message.url,
           message.loginName,
         );
 
         await navigator.clipboard.writeText(password);
+
+        return {
+          success: true,
+        };
+      }
+
+      case "LIST_ONE_TIME_CODES":
+        return {
+          success: true,
+          oneTimeCodes: await getAPI().listOneTimeCodes(
+            message.tabId,
+            message.url,
+          ),
+        };
+
+      case "FETCH_ONE_TIME_CODE":
+        return {
+          success: true,
+          oneTimeCode: await getAPI().fetchOneTimeCode(
+            message.tabId,
+            message.url,
+            message.oneTimeCode.username,
+          ),
+        };
+
+      case "FILL_ONE_TIME_CODE": {
+        const { username, code } = await getAPI().fetchOneTimeCode(
+          message.tabId ?? sender.tab?.id ?? -1,
+          message.url,
+          message.loginName,
+        );
+
+        const tab = sender.tab ?? (await browser.tabs.get(message.tabId));
+        if (tab.id === undefined)
+          throw new Error("AutoFill failed: tab no longer exists");
+        if (!tab.active)
+          throw new Error("AutoFill failed: tab is no longer active");
+        if (tab.url !== message.url)
+          throw new Error("AutoFill failed: tab has changed URL");
+
+        if (message.forwardToContentScript) {
+          const { success, warnings } = await browser.tabs.sendMessage(tab.id, {
+            cmd: "FILL_ONE_TIME_CODE",
+            username,
+            code,
+          });
+
+          (warnings as string[]).forEach((warning) => console.warn(warning));
+
+          return {
+            success,
+            warnings,
+          };
+        } else {
+          await browser.scripting.executeScript({
+            target: {
+              tabId: tab.id,
+            },
+            files: ["./fill_one_time_code.js"],
+          });
+
+          const [{ result, error }] = await browser.scripting.executeScript({
+            target: {
+              tabId: tab.id,
+            },
+            func: (username, code) => window.iCPFillOneTimeCode(username, code),
+            args: [username, code],
+          });
+
+          if (error !== undefined) throw error;
+
+          const { success, warnings } = result;
+          (warnings as string[]).forEach((warning) => console.warn(warning));
+
+          return {
+            success,
+            warnings,
+          };
+        }
+      }
+
+      case "COPY_ONE_TIME_CODE": {
+        const { code } = await getAPI().fetchOneTimeCode(
+          message.tabId,
+          message.url,
+          message.loginName,
+        );
+
+        await navigator.clipboard.writeText(code);
 
         return {
           success: true,

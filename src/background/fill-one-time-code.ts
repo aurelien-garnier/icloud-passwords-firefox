@@ -2,27 +2,27 @@ import { fillLoginForm, getLoginForms } from "../utils/dom";
 
 declare global {
   interface Window {
-    iCPFillPassword: (
+    iCPFillOneTimeCode: (
       username: string,
-      password: string,
+      code: string,
     ) => Promise<{ success: true; warnings: string[] }>;
   }
 }
 
-window.iCPFillPassword = async (username, password) => {
+window.iCPFillOneTimeCode = async (username, code) => {
   const warnings: string[] = [];
 
   const forms = getLoginForms();
 
   if (forms.length === 0) {
-    throw new Error("AutoFill failed: no password field on page");
+    throw new Error("AutoFill failed: no one-time code field on page");
   } else if (forms.length > 1) {
     warnings.push(
-      "Multiple passwords detected on page, only filling the first",
+      "Multiple one-time codes detected on page, only filling the last",
     );
   }
 
-  warnings.push(...fillLoginForm(forms[0], username, password));
+  warnings.push(...fillLoginForm(forms[forms.length - 1], username, code));
 
   return {
     success: true,

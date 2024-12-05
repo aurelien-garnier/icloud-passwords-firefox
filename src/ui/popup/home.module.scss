@@ -1,0 +1,36 @@
+@import "../shared/styles/lib";
+
+.home {
+  > nav {
+    display: flex;
+    padding: 10px 20px 0 20px;
+
+    > a {
+      flex: 1;
+
+      border: 1px solid $color-background-2;
+      padding: 2px 10px;
+
+      color: $color-text-secondary;
+      text-decoration: none;
+      text-align: center;
+
+      &.active {
+        color: $color-text-primary;
+        background-color: $color-background-2;
+      }
+
+      &:first-child {
+        border-radius: 5px 0 0 5px;
+      }
+
+      &:not(:first-child) {
+        border-left: none;
+      }
+
+      &:last-child {
+        border-radius: 0 5px 5px 0;
+      }
+    }
+  }
+}

@@ -15,6 +15,13 @@ export function ErrorView({ error }: Props) {
           the login form open.
         </>
       );
+    } else if (error === "AutoFill failed: no one-time code field on page") {
+      return (
+        <>
+          No one-time code field was found on the current page. Make sure you
+          have the login form open.
+        </>
+      );
     } else if (error === "AutoFill failed: tab is no longer active") {
       return (
         <>

@@ -22,7 +22,6 @@ const VERSION = "1.0";
 export class ApplePasswordManager extends EventEmitter {
   private port?: Runtime.Port;
   private session?: SRPSession;
-  private lock = false;
   private challengeTimestamp = 0;
 
   get ready() {
@@ -42,54 +41,48 @@ export class ApplePasswordManager extends EventEmitter {
   ) {
     if (this.port === undefined)
       throw new Error("Invalid session state: connection closed");
-    if (this.lock) throw new Error("Invalid session state: locked");
-    if (delay !== null) this.lock = true;
 
-    try {
-      const response = new Promise<R | undefined>((resolve, reject) => {
-        let timeout: NodeJS.Timeout | undefined;
+    const response = new Promise<R | undefined>((resolve, reject) => {
+      let timeout: NodeJS.Timeout | undefined;
 
-        const cleanup = () => {
-          clearTimeout(timeout);
-          this.removeListener("message", onMessage);
-          this.removeListener("error", onError);
-        };
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.removeListener("message", onMessage);
+        this.removeListener("error", onError);
+      };
 
-        const onMessage = (message: any) => {
-          if (message.cmd !== cmd) return;
+      const onMessage = (message: any) => {
+        if (message.cmd !== cmd) return;
+        cleanup();
+        return resolve(message);
+      };
+
+      const onError = (
+        error?:
+          | browser.Runtime.PortErrorType
+          | browser.Runtime.PropertyLastErrorType,
+      ) => {
+        cleanup();
+        return reject(error);
+      };
+
+      this.addListener("message", onMessage);
+      this.addListener("error", onError);
+
+      if (delay !== null) {
+        timeout = setTimeout(() => {
           cleanup();
-          return resolve(message);
-        };
+          reject(new Error("Timeout while waiting for response"));
+        }, delay);
+      }
+    });
 
-        const onError = (
-          error?:
-            | browser.Runtime.PortErrorType
-            | browser.Runtime.PropertyLastErrorType,
-        ) => {
-          cleanup();
-          return reject(error);
-        };
+    this.port.postMessage({
+      cmd,
+      ...body,
+    });
 
-        this.addListener("message", onMessage);
-        this.addListener("error", onError);
-
-        if (delay !== null) {
-          timeout = setTimeout(() => {
-            cleanup();
-            reject(new Error("Timeout while waiting for response"));
-          }, delay);
-        }
-      });
-
-      this.port.postMessage({
-        cmd,
-        ...body,
-      });
-
-      return await response;
-    } finally {
-      if (delay !== null) this.lock = false;
-    }
+    return await response;
   }
 
   async connect() {
@@ -111,7 +104,6 @@ export class ApplePasswordManager extends EventEmitter {
       });
 
       delete this.session;
-      this.lock = false;
       this.challengeTimestamp = 0;
     }
 
@@ -263,7 +255,7 @@ export class ApplePasswordManager extends EventEmitter {
     });
   }
 
-  async getLoginNamesForURL(tabId: number, url: string) {
+  async listLoginNamesForURL(tabId: number, url: string) {
     if (this.session === undefined)
       throw new Error("Invalid session state: not initialized");
 
@@ -324,7 +316,7 @@ export class ApplePasswordManager extends EventEmitter {
     }
   }
 
-  async getPasswordForLoginName(
+  async fetchPasswordForLoginName(
     tabId: number,
     url: string,
     loginName: { username: string; sites: string[] },
@@ -377,12 +369,136 @@ export class ApplePasswordManager extends EventEmitter {
     }
 
     switch (response.STATUS) {
-      case QueryStatus.SUCCESS:
-        return (response.Entries as any[]).map(({ USR, PWD, sites }) => ({
+      case QueryStatus.SUCCESS: {
+        const { USR, PWD, sites } = response.Entries[0];
+        return {
           username: USR,
           password: PWD,
           sites,
-        }))[0];
+        };
+      }
+
+      default:
+        throwQueryStatusError(response.STATUS);
+    }
+  }
+
+  async listOneTimeCodes(tabId: number, url: string) {
+    if (this.session === undefined)
+      throw new Error("Invalid session state: not initialized");
+
+    const sdata = this.session.serialize(
+      await this.session.encrypt({
+        ACT: Action.GHOST_SEARCH,
+        TYPE: "oneTimeCodes",
+        frameURLs: [url],
+      }),
+    );
+
+    const { payload } = await this._postMessage(Command.GET_ONE_TIME_CODES, {
+      tabId,
+      frameId: 0,
+      payload: {
+        QID: "CmdGetOneTimeCodes",
+        SMSG: JSON.stringify({
+          TID: this.session.username,
+          SDATA: sdata,
+        }),
+      },
+    });
+
+    // macOS sends this as an object, Windows as a string
+    if (typeof payload.SMSG === "string")
+      payload.SMSG = JSON.parse(payload.SMSG);
+
+    if (payload.SMSG.TID !== this.session.username)
+      throw new Error("Invalid server response: destined to another session");
+
+    let response;
+    try {
+      const data = await this.session.decrypt(
+        this.session.deserialize(payload.SMSG.SDATA),
+      );
+      response = JSON.parse(data.toString("utf8"));
+    } catch (e) {
+      throw new Error("Invalid server response: missing payload");
+    }
+
+    switch (response.STATUS) {
+      case QueryStatus.SUCCESS:
+        return (response.Entries as any[]).map(
+          ({ username, domain, source, code }) => ({
+            username,
+            domain,
+            source,
+            code,
+          }),
+        );
+
+      case QueryStatus.NO_RESULTS:
+        return [];
+
+      default:
+        throwQueryStatusError(response.STATUS);
+    }
+  }
+
+  async fetchOneTimeCode(tabId: number, url: string, username: string) {
+    if (this.session === undefined)
+      throw new Error("Invalid session state: not initialized");
+
+    const sdata = this.session.serialize(
+      await this.session.encrypt({
+        ACT: Action.SEARCH,
+        TYPE: "oneTimeCodes",
+        frameURLs: [url],
+        username,
+      }),
+    );
+
+    const { payload } = await this._postMessage(
+      Command.DID_FILL_ONE_TIME_CODE,
+      {
+        tabId,
+        frameId: 0,
+        payload: {
+          QID: "CmdDidFillOneTimeCode",
+          SMSG: JSON.stringify({
+            TID: this.session.username,
+            SDATA: sdata,
+          }),
+        },
+      },
+      null,
+    );
+
+    // macOS sends this as an object, Windows as a string
+    if (typeof payload.SMSG === "string")
+      payload.SMSG = JSON.parse(payload.SMSG);
+
+    if (payload.SMSG.TID !== this.session.username)
+      throw new Error("Invalid server response: destined to another session");
+
+    let response;
+    try {
+      const data = await this.session.decrypt(
+        this.session.deserialize(payload.SMSG.SDATA),
+      );
+      response = JSON.parse(data.toString("utf8"));
+    } catch (e) {
+      throw new Error("Invalid server response: missing payload");
+    }
+
+    switch (response.STATUS) {
+      case QueryStatus.SUCCESS: {
+        const { username, domain, source, code } = response.Entries[0];
+        return {
+          username,
+          domain,
+          source,
+          code,
+        };
+      }
 
       default:
         throwQueryStatusError(response.STATUS);
